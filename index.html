@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>真實工時表</title>
+<meta name="description" content="記錄專注工作、一般事務與休息，每週統計真正在工作的時數。">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="真實工時">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EDF1F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1A1E" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#EDF1F2; --panel:#FFFFFF; --sunk:#F5F8F8; --ink:#16252B; --muted:#5B6D74; --line:#D3DCDF;
+  --deep:#1D6A86; --work:#8DB6C4; --brk:#E0A43A; --accent:#1D6A86; --accent-ink:#FFFFFF; --danger:#B8452F; --good:#2F7D4F;
+  --sans:"IBM Plex Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F1A1E; --panel:#16252B; --sunk:#122025; --ink:#E4ECEE; --muted:#93A6AD; --line:#2A3D44;
+    --deep:#4FA3C2; --work:#3F6B7A; --brk:#E3AE52; --accent:#5FB3D1; --accent-ink:#0F1A1E; --danger:#E07A63; --good:#6BC08E;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F1A1E; --panel:#16252B; --sunk:#122025; --ink:#E4ECEE; --muted:#93A6AD; --line:#2A3D44;
+  --deep:#4FA3C2; --work:#3F6B7A; --brk:#E3AE52; --accent:#5FB3D1; --accent-ink:#0F1A1E; --danger:#E07A63; --good:#6BC08E;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;
+  padding-inline:max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  padding-block:calc(20px + env(safe-area-inset-top, 0px)) calc(48px + env(safe-area-inset-bottom, 0px));
+  -webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation}
+.backup{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.backup button,.backup label{border:1px solid var(--line);background:var(--sunk);border-radius:7px;padding:8px 12px;font-size:14px;cursor:pointer}
+.backup input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.hint{font-size:12.5px;color:var(--muted);margin-top:8px}
+.state.warn{color:var(--brk)}
+.wrap{max-width:960px;margin:0 auto;display:grid;gap:18px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:22px;font-weight:700;letter-spacing:.01em}
+h2{font-size:16px;font-weight:600}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.label{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.sync{font-size:12.5px;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* timer */
+.clock{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}
+.clock .digits{font-family:var(--mono);font-weight:700;font-size:clamp(44px,11vw,76px);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.clock .state{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--line);flex:none}
+.running .dot{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.running .dot{animation:none}}
+.task{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.task input{flex:1 1 220px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk)}
+.modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.mode{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:10px 8px;text-align:left;display:grid;gap:2px}
+.mode b{font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:7px}
+.mode small{color:var(--muted);font-size:12px}
+@media (max-width:430px){.mode small{display:none}.mode{padding:14px 8px}.mode b{font-size:15px}}
+.mode[aria-pressed="true"]{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+.stop{padding:12px 22px;border-radius:8px;border:0;background:var(--ink);color:var(--bg);font-weight:600}
+.stop:disabled{opacity:.35;cursor:default}
+.sw{width:10px;height:10px;border-radius:2px;background:var(--c);display:inline-block;flex:none}
+[data-t="deep"]{--c:var(--deep)} [data-t="work"]{--c:var(--work)} [data-t="brk"]{--c:var(--brk)}
+
+/* week */
+.weekbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.nav{display:flex;gap:6px;align-items:center}
+.nav button{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:6px 11px}
+.nav .range{font-weight:600;min-width:12ch;text-align:center}
+.banner{background:var(--sunk);border:1px dashed var(--line);border-radius:8px;padding:10px 14px;font-size:13.5px;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{display:grid;gap:4px;align-content:start}
+.kpi .v{font-family:var(--mono);font-size:28px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:14px;font-weight:500;color:var(--muted);margin-left:3px}
+.kpi .s{font-size:12.5px;color:var(--muted)}
+.meter{height:6px;border-radius:3px;background:var(--sunk);border:1px solid var(--line);overflow:hidden;margin-top:4px}
+.meter i{display:block;height:100%;background:var(--accent)}
+@media (max-width:680px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.grid2{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-family:var(--sans);font-size:11px}
+.chart .val{fill:var(--ink);font-family:var(--mono);font-size:11px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+.where{display:grid;gap:10px;margin-top:10px}
+.where .row{display:grid;gap:4px}
+.where .row div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
+.where .row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.where .bar{height:6px;border-radius:3px;background:var(--deep)}
+
+/* log */
+.day{border-top:1px solid var(--line);padding-block:12px}
+.day:first-of-type{border-top:0}
+.dayhead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.dayhead b{font-weight:600}
+.dayhead .meta{font-size:12.5px;color:var(--muted)}
+.sess{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px;align-items:center;padding:5px 0;font-size:14px}
+.sess .time{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pill{font-size:12px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--ink);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.sess .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .dur{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.del{border:0;background:none;color:var(--muted);font-size:12.5px;padding:3px 6px;border-radius:5px}
+.del:hover{color:var(--danger)}
+.del.confirm{color:var(--accent-ink);background:var(--danger)}
+@media (max-width:520px){.sess{grid-template-columns:auto 1fr auto auto}.sess .pill{display:none}}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+
+details.add summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.add summary::-webkit-details-marker{display:none}
+details.add summary::after{content:"＋";color:var(--muted)}
+details.add[open] summary::after{content:"－"}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;align-items:end}
+.form label{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
+.form input,.form select{padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunk);min-width:0;width:100%}
+.form .go{padding:10px 14px;border-radius:7px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600}
+.msg{font-size:13px;margin-top:8px;min-height:1.2em}
+.msg.err{color:var(--danger)} .msg.ok{color:var(--good)}
+.goal{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.goal input{width:4.5em;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="label">Weekly Real Hours</div>
+      <h1>真實工時表</h1>
+    </div>
+    <div class="sync" id="sync">連線中…</div>
+  </header>
+
+  <section class="panel" id="timerPanel" aria-label="計時器">
+    <div class="clock">
+      <div>
+        <div class="state"><span class="dot" id="dot"></span><span id="stateText">未計時</span></div>
+        <div class="digits" id="digits">0:00:00</div>
+      </div>
+      <button class="stop" id="stopBtn" disabled>停止</button>
+    </div>
+    <div class="task">
+      <input id="taskInput" type="text" maxlength="60" placeholder="現在在做什麼？例如：刀具壽命模型調參" autocomplete="off">
+    </div>
+    <div class="modes" role="group" aria-label="開始或切換類型">
+      <button class="mode" data-t="deep" id="m-deep" aria-pressed="false"><b><span class="sw"></span>專注工作</b><small>寫程式、分析、寫計畫書</small></button>
+      <button class="mode" data-t="work" id="m-work" aria-pressed="false"><b><span class="sw"></span>一般事務</b><small>會議、信件、行政</small></button>
+      <button class="mode" data-t="brk" id="m-brk" aria-pressed="false"><b><span class="sw"></span>休息</b><small>滑手機、閒聊、被打斷</small></button>
+    </div>
+  </section>
+
+  <section class="weekbar">
+    <div class="nav">
+      <button id="prevW" aria-label="上一週">‹</button>
+      <span class="range num" id="range"></span>
+      <button id="nextW" aria-label="下一週">›</button>
+      <button id="thisW">本週</button>
+    </div>
+    <label class="goal" for="goalInput">每週目標 <input id="goalInput" type="number" min="1" max="100" step="0.5" value="40"> 小時</label>
+  </section>
+
+  <div class="banner" id="demoBanner" hidden>目前顯示的是<b>範例資料</b>，讓你先看看報表長怎樣。按上方任一類型開始計時，或手動新增一筆紀錄，範例就會消失。</div>
+
+  <section class="panel kpis" id="kpis"></section>
+
+  <div class="grid2">
+    <section class="panel chart">
+      <h2>每日工時</h2>
+      <div id="chart"></div>
+      <div class="legend"><span data-t="deep"><i class="sw"></i>專注工作</span><span data-t="work"><i class="sw"></i>一般事務</span><span data-t="brk"><i class="sw"></i>休息・中斷</span></div>
+    </section>
+    <section class="panel">
+      <h2>時間花在哪</h2>
+      <div class="where" id="where"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <details class="add" id="addBox">
+      <summary>手動補登一筆</summary>
+      <form class="form" id="addForm">
+        <label for="fDate">日期<input id="fDate" type="date" required></label>
+        <label for="fStart">開始<input id="fStart" type="time" required value="09:00"></label>
+        <label for="fEnd">結束<input id="fEnd" type="time" required value="10:00"></label>
+        <label for="fType">類型<select id="fType"><option value="deep">專注工作</option><option value="work">一般事務</option><option value="brk">休息・中斷</option></select></label>
+        <label for="fName" style="grid-column:span 2">內容<input id="fName" type="text" maxlength="60" placeholder="例如：客戶現場訪視"></label>
+        <button class="go" type="submit">新增</button>
+      </form>
+      <div class="msg" id="addMsg" role="status"></div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <h2>本週紀錄</h2>
+    <div id="log"></div>
+  </section>
+
+  <section class="panel">
+    <h2>備份與匯出</h2>
+    <p class="hint" style="margin-top:4px">資料只存在這支手機裡。建議每週匯出一次備份，換手機或清除資料時可以匯入還原。</p>
+    <div class="backup">
+      <button id="exportJson" type="button">匯出備份</button>
+      <label for="importFile">匯入備份<input id="importFile" type="file" accept="application/json,.json"></label>
+      <button id="exportCsv" type="button">匯出 CSV</button>
+    </div>
+    <div class="msg" id="backupMsg" role="status"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+const TYPES = { deep:'專注工作', work:'一般事務', brk:'休息・中斷' };
+const WD = ['一','二','三','四','五','六','日'];
+const $ = id => document.getElementById(id);
+const DAY = 864e5;
+
+/* ---------- dates ---------- */
+const pad = n => String(n).padStart(2,'0');
+function mondayOf(d){ const x = new Date(d); x.setHours(0,0,0,0); const k=(x.getDay()+6)%7; x.setDate(x.getDate()-k); return x; }
+function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function weekKey(d){ return 'w-'+ymd(mondayOf(d)); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function hm(ts){ const d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function fmtHM(ms){ const m=Math.round(ms/6e4); const h=Math.floor(m/60); return h? `${h}h ${pad(m%60)}m` : `${m}m`; }
+function fmtClock(ms){ const s=Math.max(0,Math.floor(ms/1000)); return Math.floor(s/3600)+':'+pad(Math.floor(s/60)%60)+':'+pad(s%60); }
+const hrs = ms => (ms/36e5);
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ---------- storage: cloud (private per user) or this browser ---------- */
+const local = {
+  mode:'local',
+  async get(k){ try{ const v=localStorage.getItem('rh:'+k); return v?JSON.parse(v):null; }catch{ return null; } },
+  async set(k,v){ try{ localStorage.setItem('rh:'+k, JSON.stringify(v)); }catch{} },
+  async del(k){ try{ localStorage.removeItem('rh:'+k); }catch{} }
+};
+let store = local;
+async function initStore(){
+  // ask the browser not to evict our data
+  try{ if(navigator.storage?.persist) await navigator.storage.persist(); }catch{}
+}
+function allKeys(){
+  const ks=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('rh:')) ks.push(k.slice(3)); } }catch{}
+  return ks;
+}
+// one write at a time per key
+const queues = {};
+function write(k, fn){ queues[k] = (queues[k]||Promise.resolve()).then(fn).catch(e=>{ setSync('儲存失敗，請重新整理後再試'); console.error(e); }); return queues[k]; }
+
+/* ---------- state ---------- */
+const S = { view: mondayOf(new Date()), weeks:{}, active:null, settings:{goal:40, used:false}, demo:false, pendingDel:null };
+
+async function loadWeek(key){
+  if(!(key in S.weeks)){ const w = await store.get(key); S.weeks[key] = (w && Array.isArray(w.sessions)) ? w.sessions : []; }
+  return S.weeks[key];
+}
+function saveWeek(key){ const sessions = S.weeks[key]; return write(key, () => store.set(key, {sessions})); }
+async function markUsed(){ if(!S.settings.used){ S.settings.used = true; S.demo=false; await write('settings', ()=>store.set('settings', S.settings)); } }
+
+/* ---------- demo week (never saved) ---------- */
+function demoSessions(){
+  const mon = S.view, now = Date.now(), out = [];
+  const plan = [
+    ['09:05','10:40','deep','PLC 資料擷取程式'],['10:40','10:55','brk','咖啡、閒聊'],['10:55','11:40','work','客戶視訊會議'],
+    ['11:40','12:05','work','回信'],['13:30','15:05','deep','刀具壽命模型調參'],['15:05','15:30','brk','滑手機'],
+    ['15:30','16:10','work','行政表單'],['16:10','17:35','deep','計畫書撰寫']
+  ];
+  for(let d=0; d<5; d++){
+    const day = addDays(mon,d);
+    plan.forEach(([a,b,t,n],i)=>{
+      if((d+i)%5===4 && t!=='deep') return;
+      const [ah,am]=a.split(':').map(Number), [bh,bm]=b.split(':').map(Number);
+      const shift = ((d*7+i*3)%11)-5;
+      const s = new Date(day); s.setHours(ah,am+shift,0,0);
+      const e = new Date(day); e.setHours(bh,bm+shift+((d+i)%3)*4,0,0);
+      if(e.getTime() <= now) out.push({id:'demo'+d+i, s:s.getTime(), e:e.getTime(), t, n:n+'（範例）'});
+    });
+  }
+  return out;
+}
+
+/* ---------- aggregation ---------- */
+function stats(sessions){
+  const mon = S.view.getTime();
+  const days = Array.from({length:7},(_,i)=>({deep:0,work:0,brk:0,first:null,last:null,items:[]}));
+  const byName = {};
+  const list = sessions.slice();
+  if(S.active && weekKey(new Date(S.active.s))===weekKey(S.view)) list.push({...S.active, e:Date.now(), live:true, id:'live'});
+  for(const x of list){
+    for(let i=0;i<7;i++){
+      const d0 = addDays(S.view,i).getTime(), d1 = addDays(S.view,i+1).getTime();
+      const ov = Math.min(x.e,d1) - Math.max(x.s,d0);
+      if(ov<=0) continue;
+      const D = days[i]; D[x.t]+=ov;
+      if(x.s>=d0 && x.s<d1) D.items.push(x);
+      D.first = D.first==null ? Math.max(x.s,d0) : Math.min(D.first, Math.max(x.s,d0));
+      D.last = D.last==null ? Math.min(x.e,d1) : Math.max(D.last, Math.min(x.e,d1));
+    }
+    if(x.t!=='brk'){ const k=(x.n||'（未命名）').replace(/（範例）$/,''); byName[k]=(byName[k]||0)+(x.e-x.s); }
+  }
+  let deep=0,work=0,brk=0,span=0,workDays=0;
+  days.forEach(D=>{ deep+=D.deep; work+=D.work; brk+=D.brk; if(D.first!=null){ span+=D.last-D.first; if(D.deep+D.work>0) workDays++; } });
+  return {days,deep,work,brk,span,workDays,byName};
+}
+
+/* ---------- render ---------- */
+function setSync(t){ $('sync').textContent = t; }
+
+async function render(){
+  const key = weekKey(S.view);
+  let sessions = await loadWeek(key);
+  S.demo = !S.settings.used && sessions.length===0 && !S.active && key===weekKey(new Date());
+  if(S.demo) sessions = demoSessions();
+  $('demoBanner').hidden = !S.demo;
+  const sun = addDays(S.view,6);
+  $('range').textContent = `${S.view.getMonth()+1}/${S.view.getDate()} – ${sun.getMonth()+1}/${sun.getDate()}`;
+  $('thisW').hidden = key===weekKey(new Date());
+
+  const st = stats(sessions);
+  const real = st.deep + st.work;
+  const goalMs = S.settings.goal*36e5;
+  const pct = goalMs? Math.min(100, real/goalMs*100) : 0;
+  const eff = st.span ? real/st.span*100 : 0;
+  const focus = real ? st.deep/real*100 : 0;
+  $('kpis').innerHTML = `
+    <div class="kpi"><span class="label">真正工作時數</span><span class="v">${hrs(real).toFixed(1)}<small>h</small></span>
+      <div class="meter" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div><span class="s">目標 ${S.settings.goal}h 的 ${Math.round(real/goalMs*100)||0}%</span></div>
+    <div class="kpi"><span class="label">專注工作</span><span class="v">${hrs(st.deep).toFixed(1)}<small>h</small></span><span class="s">佔工作時間 ${focus.toFixed(0)}%</span></div>
+    <div class="kpi"><span class="label">工作效率</span><span class="v">${st.span?eff.toFixed(0):'–'}<small>%</small></span><span class="s">在位 ${hrs(st.span).toFixed(1)}h 中真正在做事</span></div>
+    <div class="kpi"><span class="label">休息・中斷</span><span class="v">${hrs(st.brk).toFixed(1)}<small>h</small></span><span class="s">${st.workDays? '平均每天 '+fmtHM(real/st.workDays)+' 有效工時' : '尚無紀錄'}</span></div>`;
+
+  renderChart(st);
+  renderWhere(st, real);
+  renderLog(st);
+}
+
+function renderChart(st){
+  const W=560,H=240,L=30,R=8,T=18,B=28;
+  const maxMs = Math.max(...st.days.map(d=>d.deep+d.work+d.brk), 0);
+  const top = Math.max(4, Math.ceil(hrs(maxMs)/2)*2);
+  const y = h => T + (H-T-B)*(1-h/top);
+  const bw = (W-L-R)/7, barW = Math.min(38,bw*0.56);
+  let g = '';
+  for(let h=0; h<=top; h+=2){ g += `<line x1="${L}" x2="${W-R}" y1="${y(h)}" y2="${y(h)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(h)+4}" text-anchor="end">${h}</text>`; }
+  const todayIdx = weekKey(new Date())===weekKey(S.view) ? (new Date().getDay()+6)%7 : -1;
+  st.days.forEach((d,i)=>{
+    const cx = L + bw*i + bw/2, x = cx-barW/2;
+    let acc = 0;
+    for(const t of ['deep','work','brk']){
+      const v = hrs(d[t]); if(v<=0) continue;
+      const y1 = y(acc+v), y0 = y(acc);
+      g += `<rect x="${x}" y="${y1}" width="${barW}" height="${Math.max(0,y0-y1)}" fill="var(--${t})"><title>${WD[i]} ${TYPES[t]} ${fmtHM(d[t])}</title></rect>`;
+      acc += v;
+    }
+    const realH = hrs(d.deep+d.work);
+    if(acc>0) g += `<text class="val" x="${cx}" y="${y(acc)-5}" text-anchor="middle">${realH.toFixed(1)}</text>`;
+    g += `<text x="${cx}" y="${H-8}" text-anchor="middle" ${i===todayIdx?'style="fill:var(--ink);font-weight:600"':''}>週${WD[i]}</text>`;
+  });
+  $('chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="每日工時長條圖，單位小時">${g}</svg>`;
+}
+
+function renderWhere(st, real){
+  const rows = Object.entries(st.byName).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  if(!rows.length){ $('where').innerHTML = '<div class="empty">開始計時並填上內容，這裡會列出時間最多的工作項目。</div>'; return; }
+  const max = rows[0][1];
+  $('where').innerHTML = rows.map(([n,ms])=>`
+    <div class="row"><div><span class="name">${esc(n)}</span><span class="num muted">${fmtHM(ms)} · ${Math.round(ms/real*100)}%</span></div>
+    <div class="bar" style="width:${(ms/max*100).toFixed(1)}%"></div></div>`).join('');
+}
+
+function renderLog(st){
+  const out = [];
+  for(let i=6;i>=0;i--){
+    const d = st.days[i]; if(!d.items.length) continue;
+    const date = addDays(S.view,i);
+    const real = d.deep+d.work, span = d.last-d.first;
+    const items = d.items.slice().sort((a,b)=>a.s-b.s).map(x=>`
+      <div class="sess" data-t="${x.t}">
+        <span class="time">${hm(x.s)}–${x.live?'進行中':hm(x.e)}</span>
+        <span class="pill"><i class="sw"></i>${TYPES[x.t]}</span>
+        <span class="n">${esc(x.n)||'<span class="muted">（未命名）</span>'}</span>
+        <span class="dur">${fmtHM(x.e-x.s)}</span>
+        ${x.live||S.demo?'<span></span>':`<button class="del ${S.pendingDel===x.id?'confirm':''}" data-del="${x.id}">${S.pendingDel===x.id?'確定刪除':'刪除'}</button>`}
+      </div>`).join('');
+    out.push(`<div class="day"><div class="dayhead"><b>${date.getMonth()+1}/${date.getDate()}（${WD[i]}）</b>
+      <span class="meta num">工作 ${fmtHM(real)} · 在位 ${fmtHM(span)} · 效率 ${span?Math.round(real/span*100):0}%</span></div>${items}</div>`);
+  }
+  $('log').innerHTML = out.join('') || '<div class="empty">這週還沒有紀錄。</div>';
+}
+
+/* ---------- timer ---------- */
+function paintTimer(){
+  const a = S.active;
+  $('timerPanel').classList.toggle('running', !!a);
+  $('timerPanel').dataset.t = a ? a.t : '';
+  $('dot').style.background = a ? `var(--${a.t})` : '';
+  $('stateText').textContent = a ? `${TYPES[a.t]}中 · ${hm(a.s)} 開始` : '未計時';
+  paintWarn();
+  $('digits').textContent = fmtClock(a ? Date.now()-a.s : 0);
+  $('stopBtn').disabled = !a;
+  for(const t of Object.keys(TYPES)) $('m-'+t).setAttribute('aria-pressed', a && a.t===t ? 'true':'false');
+}
+
+// gentle nudges shown in the app: long focus stretch, or a break that ran long
+function paintWarn(){
+  const a = S.active, el = $('stateText').parentElement;
+  let warn = '';
+  if(a){
+    const m = (Date.now()-a.s)/6e4;
+    if(a.t==='deep' && m>=90) warn = '已連續專注超過 90 分鐘，起來走動一下吧';
+    else if(a.t==='brk' && m>=30) warn = '休息已超過 30 分鐘，要回到工作了嗎？';
+    else if(m>=12*60) warn = '計時已超過 12 小時，是不是忘了按停止？';
+  }
+  el.classList.toggle('warn', !!warn);
+  el.title = warn;
+  if(warn) $('stateText').textContent = warn;
+}
+
+async function closeActive(){
+  const a = S.active; if(!a) return;
+  S.active = null;
+  const end = Date.now();
+  if(end - a.s >= 30000){
+    const key = weekKey(new Date(a.s));
+    const arr = await loadWeek(key);
+    arr.push({id:uid(), s:a.s, e:end, t:a.t, n:a.n||''});
+    saveWeek(key);
+  }
+}
+
+async function startMode(t){
+  const name = $('taskInput').value.trim();
+  if(S.active && S.active.t===t && S.active.n===name) return;
+  await closeActive();
+  S.active = {s:Date.now(), t, n:name};
+  write('active', ()=>store.set('active', S.active));
+  await markUsed();
+  paintTimer(); render();
+}
+
+async function stop(){
+  await closeActive();
+  write('active', ()=>store.del('active'));
+  paintTimer(); render();
+}
+
+/* ---------- events ---------- */
+for(const t of Object.keys(TYPES)) $('m-'+t).addEventListener('click', ()=>startMode(t));
+$('stopBtn').addEventListener('click', stop);
+$('taskInput').addEventListener('change', ()=>{
+  if(!S.active) return;
+  S.active.n = $('taskInput').value.trim();
+  write('active', ()=>store.set('active', S.active)); render();
+});
+$('prevW').addEventListener('click', ()=>{ S.view = addDays(S.view,-7); S.pendingDel=null; render(); });
+$('nextW').addEventListener('click', ()=>{ S.view = addDays(S.view,7); S.pendingDel=null; render(); });
+$('thisW').addEventListener('click', ()=>{ S.view = mondayOf(new Date()); render(); });
+let goalT;
+$('goalInput').addEventListener('input', e=>{
+  const v = parseFloat(e.target.value); if(!(v>0)) return;
+  S.settings.goal = v; render();
+  clearTimeout(goalT); goalT = setTimeout(()=>write('settings', ()=>store.set('settings', S.settings)), 700);
+});
+$('log').addEventListener('click', async e=>{
+  const b = e.target.closest('[data-del]'); if(!b) return;
+  const id = b.dataset.del;
+  if(S.pendingDel !== id){ S.pendingDel = id; render(); return; }
+  S.pendingDel = null;
+  const key = weekKey(S.view);
+  S.weeks[key] = (await loadWeek(key)).filter(x=>x.id!==id);
+  saveWeek(key); render();
+});
+$('addForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const msg = $('addMsg');
+  const [Y,M,D] = $('fDate').value.split('-').map(Number);
+  const [sh,sm] = $('fStart').value.split(':').map(Number), [eh,em] = $('fEnd').value.split(':').map(Number);
+  const s = new Date(Y,M-1,D,sh,sm).getTime(); let en = new Date(Y,M-1,D,eh,em).getTime();
+  if(!(Y&&M&&D) || isNaN(s) || isNaN(en)){ msg.className='msg err'; msg.textContent='請填好日期與時間。'; return; }
+  if(en <= s){ msg.className='msg err'; msg.textContent='結束時間要晚於開始時間。跨夜的話請拆成兩筆。'; return; }
+  const key = weekKey(new Date(s));
+  const arr = await loadWeek(key);
+  arr.push({id:uid(), s, e:en, t:$('fType').value, n:$('fName').value.trim()});
+  saveWeek(key);
+  await markUsed();
+  S.view = mondayOf(new Date(s));
+  msg.className='msg ok'; msg.textContent=`已新增 ${hm(s)}–${hm(en)}（${fmtHM(en-s)}）`;
+  $('fName').value='';
+  render();
+});
+
+/* ---------- boot ---------- */
+$('fDate').value = ymd(new Date());
+paintTimer(); render();
+setInterval(()=>{ if(S.active){ $('digits').textContent = fmtClock(Date.now()-S.active.s); } }, 1000);
+setInterval(()=>{ if(S.active) paintTimer(); }, 20000);
+setInterval(()=>{ if(S.active) render(); }, 30000);
+
+(async ()=>{
+  await initStore();
+  S.weeks = {};
+  const [set, act] = await Promise.all([store.get('settings'), store.get('active')]);
+  if(set) S.settings = {goal:40, used:false, ...set};
+  $('goalInput').value = S.settings.goal;
+  S.active = act && act.s ? act : null;
+  if(S.active){ $('taskInput').value = S.active.n||''; S.settings.used = true; }
+  setSync(navigator.onLine ? '資料存在這支手機' : '離線中 · 照常記錄');
+  paintTimer(); render();
+  // phone wakes up / app comes back to front: refresh the clock and numbers right away
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ paintTimer(); render(); } });
+  addEventListener('online', ()=>setSync('資料存在這支手機'));
+  addEventListener('offline', ()=>setSync('離線中 · 照常記錄'));
+})();
+
+/* ---------- backup ---------- */
+function stamp(){ const d=new Date(); return ymd(d).replace(/-/g,''); }
+async function giveFile(name, text, type){
+  const msg = $('backupMsg');
+  const file = new File([text], name, {type});
+  // iPhone home-screen apps: the share sheet is the reliable way to save (存到檔案 / AirDrop / LINE)
+  try{
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:name});
+      msg.className='msg ok'; msg.textContent='已開啟分享選單，選「儲存到檔案」即可保存。'; return;
+    }
+  }catch(e){ if(e && e.name==='AbortError'){ msg.className='msg'; msg.textContent=''; return; } }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  msg.className='msg ok'; msg.textContent='已下載 '+name;
+}
+$('exportJson').addEventListener('click', async ()=>{
+  const data = {app:'real-hours', version:1, exportedAt:new Date().toISOString(), items:{}};
+  for(const k of allKeys()) data.items[k] = await store.get(k);
+  await giveFile(`工時備份-${stamp()}.json`, JSON.stringify(data), 'application/json');
+});
+$('exportCsv').addEventListener('click', async ()=>{
+  const rows = [['日期','星期','開始','結束','分鐘','類型','內容']];
+  const all = [];
+  for(const k of allKeys().filter(k=>k.startsWith('w-'))){ const w = await store.get(k); if(w?.sessions) all.push(...w.sessions); }
+  all.sort((a,b)=>a.s-b.s).forEach(x=>{
+    const d = new Date(x.s);
+    rows.push([ymd(d), WD[(d.getDay()+6)%7], hm(x.s), hm(x.e), Math.round((x.e-x.s)/6e4), TYPES[x.t], x.n||'']);
+  });
+  const csv = '﻿' + rows.map(r=>r.map(c=>{ const s=String(c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',')).join('\r\n');
+  await giveFile(`工時紀錄-${stamp()}.csv`, csv, 'text/csv');
+});
+$('importFile').addEventListener('change', async e=>{
+  const msg = $('backupMsg'); const f = e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if(data.app!=='real-hours' || !data.items) throw new Error('bad');
+    let added = 0;
+    for(const [k,v] of Object.entries(data.items)){
+      if(k.startsWith('w-') && v?.sessions){
+        const cur = (await store.get(k))?.sessions || [];
+        const ids = new Set(cur.map(x=>x.id));
+        const merged = cur.concat(v.sessions.filter(x=>!ids.has(x.id)));
+        added += merged.length - cur.length;
+        await store.set(k, {sessions:merged});
+      } else if(k==='settings' && v){ await store.set(k, {...S.settings, ...v, used:true}); }
+    }
+    S.weeks = {}; const set = await store.get('settings'); if(set) S.settings = {goal:40, ...set, used:true};
+    $('goalInput').value = S.settings.goal;
+    render();
+    msg.className='msg ok'; msg.textContent = `匯入完成，新增 ${added} 筆紀錄（重複的會自動略過）。`;
+  }catch{ msg.className='msg err'; msg.textContent='這個檔案不是工時表的備份檔，請選擇「匯出備份」產生的 .json 檔。'; }
+});
+
+/* ---------- offline support ---------- */
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+})();
+</script>
+</body>
+</html>

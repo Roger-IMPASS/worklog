@@ -1,0 +1,17 @@
+{
+  "name": "真實工時表",
+  "short_name": "真實工時",
+  "description": "記錄專注工作、一般事務與休息，每週統計真正在工作的時數。",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDF1F2",
+  "theme_color": "#1D6A86",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
